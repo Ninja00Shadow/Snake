@@ -1,73 +1,34 @@
-import pygame, sys, random
+import sys, pathlib
 from pygame.math import Vector2
 
+from snake import Snake
+from apple import Apple
+from button import Button
 
-class SNAKE:
+from important_constants import *
+
+def get_font(font_size):
+    return pygame.font.Font('fonts/menu_font.ttf', font_size)
+
+
+class Game:
     def __init__(self):
-        self.body = [Vector2(5, 10), Vector2(4, 10), Vector2(3, 10)]
-        self.direction = Vector2(0, 0)
-        self.new_block = False
-
-        self.eating_sound = pygame.mixer.Sound('resources/eating_sound.mp3')
-
-    def draw_snake(self):
-        for index, block in enumerate(self.body):
-            block_rect = pygame.Rect(block.x * cell_size, block.y * cell_size, cell_size, cell_size)
-            pygame.draw.rect(screen, pygame.color.THECOLORS['purple'], block_rect)
-
-
-    def move_snake(self):
-        if self.new_block:
-            body_copy = self.body[:]
-            body_copy.insert(0, body_copy[0] + self.direction)
-            self.body = body_copy[:]
-            self.new_block = False
-        else:
-            body_copy = self.body[:-1]
-            body_copy.insert(0, body_copy[0] + self.direction)
-            self.body = body_copy
-
-    def add_block(self):
-        self.new_block = True
-
-    def play_eating_sound(self):
-        self.eating_sound.play()
-
-    def reset(self):
-        self.body = [Vector2(5, 10), Vector2(4, 10), Vector2(3, 10)]
-        self.direction = Vector2(0, 0)
-
-
-class FRUIT:
-    def __init__(self):
-        self.randomize()
-
-    def draw_fruit(self):
-        fruit_rect = pygame.Rect(self.position.x * cell_size, self.position.y * cell_size, cell_size, cell_size)
-        pygame.draw.rect(screen, (126, 166, 114), fruit_rect)
-        # screen.blit(screen, (126, 166, 114), fruit_rect)
-
-    def randomize(self):
-        self.x = random.randint(0, cell_number - 1)
-        self.y = random.randint(0, cell_number - 1)
-        self.position = Vector2(self.x, self.y)
-
-
-class MAIN:
-    def __init__(self):
-        self.snake = SNAKE()
-        self.fruit = FRUIT()
+        self.snake = Snake()
+        self.fruit = Apple()
 
     def update(self):
         self.snake.move_snake()
         self.check_collision()
-        self.check_fail()
+        if self.snake.is_moving():
+            self.check_fail()
 
     def draw_elements(self):
         self.draw_grass()
         self.fruit.draw_fruit()
         self.snake.draw_snake()
         self.draw_score()
+        if not self.snake.is_moving():
+            self.draw_move_to_start_message()
 
     def check_collision(self):
         if self.fruit.position == self.snake.body[0]:
@@ -80,7 +41,7 @@ class MAIN:
                 self.fruit.randomize()
 
     def check_fail(self):
-        if not 0 <= self.snake.body[0].x < cell_number or not 0 <= self.snake.body[0].y < cell_number:
+        if not 0 <= self.snake.body[0].x < CELL_NUMBER or not 0 <= self.snake.body[0].y < CELL_NUMBER:
             self.game_over()
 
         for block in self.snake.body[1:]:
@@ -88,70 +49,225 @@ class MAIN:
                 self.game_over()
 
     def game_over(self):
+        self.add_score_to_file(self.snake.get_score())
+
+        print("Game over!")
+
         self.snake.reset()
 
     def draw_grass(self):
         grass_color = (167, 209, 61)
 
-        for row in range(cell_number):
+        for row in range(CELL_NUMBER):
             if row % 2 == 0:
-                for col in range(cell_number):
+                for col in range(CELL_NUMBER):
                     if col % 2 == 0:
-                        grass_rect = pygame.Rect(col * cell_size, row * cell_size, cell_size, cell_size)
+                        grass_rect = pygame.Rect(col * CELL_SIZE, row * CELL_SIZE, CELL_SIZE, CELL_SIZE)
                         pygame.draw.rect(screen, grass_color, grass_rect)
             else:
-                for col in range(cell_number):
+                for col in range(CELL_NUMBER):
                     if col % 2 != 0:
-                        grass_rect = pygame.Rect(col * cell_size, row * cell_size, cell_size, cell_size)
+                        grass_rect = pygame.Rect(col * CELL_SIZE, row * CELL_SIZE, CELL_SIZE, CELL_SIZE)
                         pygame.draw.rect(screen, grass_color, grass_rect)
 
     def draw_score(self):
-        score_text = str(len(self.snake.body) - 3)
+        score_text = str(self.snake.get_score())
         score_surface = game_font.render(score_text, True, (56, 74, 12))
-        score_x = int(cell_size * cell_number - 60)
-        score_y = int(cell_size * cell_number - 40)
+        score_x = int(CELL_SIZE * CELL_NUMBER - 60)
+        score_y = int(CELL_SIZE * CELL_NUMBER - 40)
         score_rect = score_surface.get_rect(center=(score_x, score_y))
+        apple_rect = apple.get_rect(midright=(score_rect.left, score_rect.centery))
+        bg_rect = pygame.Rect(apple_rect.left, apple_rect.top, apple_rect.width + score_rect.width + 6,
+                              apple_rect.height)
 
+        pygame.draw.rect(screen, (167, 209, 61), bg_rect)
         screen.blit(score_surface, score_rect)
+        screen.blit(apple, apple_rect)
+        pygame.draw.rect(screen, (56, 74, 12), bg_rect, 2)
+
+    def run(self):
+        self.main_menu()
+
+    def main_menu(self):
+        while True:
+            screen.fill("#a6d13b")
+
+            menu_mouse_pos = pygame.mouse.get_pos()
+
+            menu_text = get_font(75).render("MAIN MENU", True, "#b68f40")
+            menu_rect = menu_text.get_rect(center=(400, 100))
+
+            play_button = Button(image=pygame.image.load("resources/Play Rect.png"), pos=(400, 250),
+                                 text_input="PLAY", font=get_font(50), base_color="#d7fcd4", hovering_color="White")
+            options_button = Button(image=pygame.image.load("resources/Options Rect.png"), pos=(400, 400),
+                                    text_input="OPTIONS", font=get_font(50), base_color="#d7fcd4",
+                                    hovering_color="White")
+            highest_scores = Button(image=pygame.image.load("resources/Score Rect.png"), pos=(400, 550),
+                                        text_input="SCORES", font=get_font(50), base_color="#d7fcd4",
+                                        hovering_color="White")
+            quit_button = Button(image=pygame.image.load("resources/Quit Rect.png"), pos=(400, 700),
+                                 text_input="QUIT", font=get_font(50), base_color="#d7fcd4", hovering_color="White")
+
+            screen.blit(menu_text, menu_rect)
+
+            for button in [play_button, options_button, highest_scores, quit_button]:
+                button.changeColor(menu_mouse_pos)
+                button.update(screen)
+
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    if play_button.checkForInput(menu_mouse_pos):
+                        self.play()
+                    if options_button.checkForInput(menu_mouse_pos):
+                        self.options()
+                    if highest_scores.checkForInput(menu_mouse_pos):
+                        self.scores()
+                    if quit_button.checkForInput(menu_mouse_pos):
+                        pygame.quit()
+                        sys.exit()
+
+            pygame.display.update()
+
+    def play(self):
+        while True:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+
+                if event.type == SCREEN_UPDATE:
+                    main_game.update()
+
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_UP:
+                        if main_game.snake.direction.y != 1:
+                            main_game.snake.direction = Vector2(0, -1)
+                            print("up")
+                    if event.key == pygame.K_DOWN:
+                        if main_game.snake.direction.y != -1:
+                            main_game.snake.direction = Vector2(0, 1)
+                            print("down")
+                    if event.key == pygame.K_LEFT:
+                        if main_game.snake.direction.x != 1:
+                            main_game.snake.direction = Vector2(-1, 0)
+                            print("left")
+                    if event.key == pygame.K_RIGHT:
+                        if main_game.snake.direction.x != -1:
+                            main_game.snake.direction = Vector2(1, 0)
+                            print("right")
+
+                    if event.key == pygame.K_ESCAPE:
+                        self.snake.stop()
+                        self.main_menu()
+
+            screen.fill((175, 215, 70))
+            main_game.draw_elements()
+            pygame.display.update()
+            clock.tick(60)
+
+    def options(self):
+        while True:
+            OPTIONS_MOUSE_POS = pygame.mouse.get_pos()
+
+            screen.fill("#a6d13b")
+
+            OPTIONS_TEXT = get_font(30).render("This is the OPTIONS screen.", True, "Black")
+            OPTIONS_RECT = OPTIONS_TEXT.get_rect(center=(400, 260))
+            screen.blit(OPTIONS_TEXT, OPTIONS_RECT)
+
+            OPTIONS_BACK = Button(image=None, pos=(400, 460),
+                                  text_input="BACK", font=get_font(50), base_color="Black", hovering_color="Green")
+
+            OPTIONS_BACK.changeColor(OPTIONS_MOUSE_POS)
+            OPTIONS_BACK.update(screen)
+
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    if OPTIONS_BACK.checkForInput(OPTIONS_MOUSE_POS):
+                        self.main_menu()
+
+            pygame.display.update()
+
+    def get_scores(self):
+        scores = []
+        score_file = pathlib.Path("scores.txt")
+        if score_file.exists():
+            with open("scores.txt", "r") as file:
+                for line in file:
+                    scores.append(line.strip())
+        else:
+            score_file.touch()
+
+        return [score for score in scores if score != "" and score != " " and score != "\n" and score != "0"]
+
+    def scores(self):
+        scores = self.get_scores()
+
+        while True:
+            scores_mouse_pos = pygame.mouse.get_pos()
+
+            screen.fill("#a6d13b")
+
+            if len(scores) <= 0:
+                scores_text = get_font(30).render("There are no scores", True, "Black")
+                scores_rect = scores_text.get_rect(center=(400, 260))
+                screen.blit(scores_text, scores_rect)
+            else:
+                scores_text = get_font(35).render("Current highest scores", True, "Black")
+                scores_rect = scores_text.get_rect(center=(400, 50))
+                screen.blit(scores_text, scores_rect)
+
+                for i, score in enumerate(scores):
+                    score_text = get_font(30).render(f"{score}", True, "Black")
+                    score_rect = score_text.get_rect(center=(400, 150 + (i * 40)))
+                    apple_rect = apple.get_rect(midright=(score_rect.left, score_rect.centery))
+
+                    screen.blit(apple, apple_rect)
+                    screen.blit(score_text, score_rect)
+
+            scores_back = Button(image=None, pos=(400, 650),
+                                  text_input="BACK", font=get_font(50), base_color="Black", hovering_color="Green")
+
+            scores_back.changeColor(scores_mouse_pos)
+            scores_back.update(screen)
+
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    if scores_back.checkForInput(scores_mouse_pos):
+                        self.main_menu()
+
+            pygame.display.update()
+
+    def add_score_to_file(self, score):
+        scores = self.get_scores()
+
+        scores = [int(score) for score in scores]
+
+        scores.append(score)
+        scores.sort(reverse=True)
+
+        if len(scores) > 10:
+            scores = scores[:10]
+
+        with open("scores.txt", "w") as file:
+            for score in scores:
+                file.write(f"{score}\n")
+
+    def draw_move_to_start_message(self):
+        message = get_font(30).render("Press any key to start!", True, "Black")
+        message_rect = message.get_rect(center=(400, 350))
+
+        screen.blit(message, message_rect)
 
 
-pygame.mixer.pre_init(44100, -16, 2, 256)
-pygame.init()
-cell_size = 40
-cell_number = 20
-screen = pygame.display.set_mode((cell_number * cell_size, cell_number * cell_size))
-clock = pygame.time.Clock()
-game_font = pygame.font.Font('Font/PoetsenOne-Regular.ttf', 25)
-
-SCREEN_UPDATE = pygame.USEREVENT
-pygame.time.set_timer(SCREEN_UPDATE, 150)
-
-main_game = MAIN()
-
-while True:
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            pygame.quit()
-            sys.exit()
-
-        if event.type == SCREEN_UPDATE:
-            main_game.update()
-
-        if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_UP:
-                if main_game.snake.direction.y != 1:
-                    main_game.snake.direction = Vector2(0, -1)
-            if event.key == pygame.K_DOWN:
-                if main_game.snake.direction.y != -1:
-                    main_game.snake.direction = Vector2(0, 1)
-            if event.key == pygame.K_LEFT:
-                if main_game.snake.direction.x != 1:
-                    main_game.snake.direction = Vector2(-1, 0)
-            if event.key == pygame.K_RIGHT:
-                if main_game.snake.direction.x != -1:
-                    main_game.snake.direction = Vector2(1, 0)
-
-    screen.fill((175, 215, 70))
-    main_game.draw_elements()
-    pygame.display.update()
-    clock.tick(60)
+main_game = Game()
+main_game.run()
