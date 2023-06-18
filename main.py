@@ -4,6 +4,7 @@ from pygame.math import Vector2
 from snake import Snake
 from apple import Apple
 from button import Button
+from slider import Slider
 
 from important_constants import *
 
@@ -32,9 +33,9 @@ class Game:
 
     def check_collision(self):
         if self.fruit.position == self.snake.body[0]:
+            self.snake.play_eating_sound()
             self.fruit.randomize()
             self.snake.add_block()
-            self.snake.play_eating_sound()
 
         for block in self.snake.body[1:]:
             if block == self.fruit.position:
@@ -132,6 +133,9 @@ class Game:
             pygame.display.update()
 
     def play(self):
+        options = self.load_options()
+        eating_sound.set_volume(float(options[0]) / 10)
+
         while True:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -169,30 +173,68 @@ class Game:
             clock.tick(60)
 
     def options(self):
+        options = self.load_options()
+
+        sound_scale = Slider((500, 360), width=200, height=30, min_value=0, max_value=10, value=int(options[0]),
+                             color="red", hovering_color="orange3")
+
         while True:
-            OPTIONS_MOUSE_POS = pygame.mouse.get_pos()
+            options_mouse_pos = pygame.mouse.get_pos()
 
             screen.fill("#a6d13b")
 
-            OPTIONS_TEXT = get_font(30).render("This is the OPTIONS screen.", True, "Black")
-            OPTIONS_RECT = OPTIONS_TEXT.get_rect(center=(400, 260))
-            screen.blit(OPTIONS_TEXT, OPTIONS_RECT)
+            options_text = get_font(30).render("Options", True, "Black")
+            options_rect = options_text.get_rect(center=(400, 260))
+            screen.blit(options_text, options_rect)
 
-            OPTIONS_BACK = Button(image=None, pos=(400, 460),
-                                  text_input="BACK", font=get_font(50), base_color="Black", hovering_color="Green")
+            sound_options_text = get_font(30).render("Sound", True, "Black")
+            sound_options_rect = sound_options_text.get_rect(center=(250, 360))
+            screen.blit(sound_options_text, sound_options_rect)
 
-            OPTIONS_BACK.changeColor(OPTIONS_MOUSE_POS)
-            OPTIONS_BACK.update(screen)
+            sound_scale.check_for_hover(options_mouse_pos)
+            sound_scale.draw()
+
+            options_back = Button(image=None, pos=(400, 560),
+                                  text_input="BACK", font=get_font(40), base_color="Black", hovering_color="Green")
+
+            options_back.changeColor(options_mouse_pos)
+            options_back.update(screen)
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
+                    self.save_options(sound_scale.value)
                     pygame.quit()
                     sys.exit()
                 if event.type == pygame.MOUSEBUTTONDOWN:
-                    if OPTIONS_BACK.checkForInput(OPTIONS_MOUSE_POS):
+                    if options_back.checkForInput(options_mouse_pos):
+                        self.save_options(sound_scale.value)
                         self.main_menu()
 
+                    sound_scale.check_for_click(options_mouse_pos)
+
+                    sound_scale.check_for_unclick(options_mouse_pos)
+
+                if event.type == pygame.KEYDOWN:
+                    sound_scale.check_for_arrow_keys(event.key)
+
             pygame.display.update()
+
+    def save_options(self, sound_value):
+        with open("options.txt", "w") as file:
+            file.write(str(sound_value))
+
+    def load_options(self):
+        options = []
+        options_file = pathlib.Path("options.txt")
+        if options_file.exists():
+            with open("options.txt", "r") as file:
+                for line in file:
+                    options.append(line.strip())
+        else:
+            options_file.touch()
+            options.append("5")
+
+        return options
 
     def get_scores(self):
         scores = []
