@@ -231,8 +231,8 @@ class Game:
                 for line in file:
                     options.append(line.strip())
         else:
-            options_file.touch()
             options.append("5")
+            self.save_options(5)
 
         return options
 
