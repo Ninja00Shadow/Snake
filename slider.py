@@ -1,5 +1,3 @@
-import pygame
-
 from important_constants import *
 
 
